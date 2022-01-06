@@ -1,7 +1,13 @@
-import stdiomask
+try:
+    # Necessary Imports 3rd Party imports.
+    import stdiomask
+except:
+    # Installing required Packages.
+    import install_requirements
+
+# Built-in Imports
 import re
 import sys
-import sqlite3
 from hashlib import pbkdf2_hmac
 from datetime import date
 
@@ -9,6 +15,11 @@ from datetime import date
 from database_connection import *
 
 # GLOBAL CONSTANTS
+# These are mostly numbers that looks like just random in the code.
+# So, I put them in meaningful names so that they make sense in the context and don't just appear to
+# be random numbers. The way they are setup is: CATEGORY_COMMAND_SPECIFIC_DETAILS.
+
+# Indices of different data after the fetch command
 INDEX_FETCH_FIRST_NAME = 0
 INDEX_FETCH_LAST_NAME = 1
 INDEX_FETCH_EMAIL = 2
@@ -17,18 +28,22 @@ INDEX_FETCH_DOB = 4
 INDEX_FETCH_BAL = 5
 INDEX_FETCH_ROWID = 6
 INDEX_FETCH_LAST_TRXID = 0
-INDEX_MONTH = 1
+
+INDEX_DATE_MONTH = 1
+INDEX_DATE_YEAR = 0
 
 INDEX_FETCH_TRANSACTION_TYPE = 2
 
+# Hashing Constants
 SIZE_SALT = 32
 SIZE_KEY = 32
 ITERATION_HASH = 100_000
 
-# In the database, income is represented as 1 and expense is represented as 0
+# In the database, income is represented as 1, and expense is represented as 0
 TYPE_INCOME = 1
 TYPE_EXPENSE = 0
 
+# Months and Types of statement is also put in constant forms
 STATEMENT_PREV_MONTH = 0
 STATEMENT_THIS_MONTH = 1
 STATEMENT_TYPE_INCOME = 1
@@ -36,19 +51,22 @@ STATEMENT_TYPE_EXPENSE = 2
 STATEMENT_TYPE_ALL = 3
 
 
-
-
+# This class maintains the active user. Any thing a user performs(Add expense, Add income, View Statement)
+# will be performed through this class
 class User:
     def __init__(self):
-        print()
-        print("****** Connecting to Database.")
-        connection = sqlite3.connect('user_data.sqlite')
-        cursor = connection.cursor()
-        print("****** Database Connected")
-        print()
-        print()
+        # print()
+        # print("****** Connecting to Database.")
+        # # connection = sqlite3.connect('user_data.sqlite')
+        # # cursor = connection.cursor()
+        # print("****** Database Connected")
+        # print()
+        # print()
 
+        # Keeps track of whether the person running the app is logged in or not.
         self.login_status = False
+
+        # Basic User information
         self.user_id = None
         self.first_name = None
         self.last_name = None
@@ -56,6 +74,8 @@ class User:
         self.dob = None
         self.balance = None
 
+    # Methode: Login.
+    # This method is used to log the user in.
     def login(self):
         print("Login: ")
 
@@ -63,11 +83,17 @@ class User:
         while True:
             print(f"{'*' * 6}", end=" ")
             login_email = input("Email: ")
+
+            # Using Regular Expression to check whether the email is a valid email.
             if re.search("^[a-z0-9]+[a-z0-9.]+@[a-z0-9]+\.[a-z]", login_email):
                 break
 
             print(f"{'*' * 6}", end=" ")
             print("Invalid email. Please Try Again.")
+
+        # Masking the password with '*' so that the password is not visible when typing.
+        # IDLE doesn't support the stdiomask function, so I had to make a logic statement to tell the program
+        # not to mask when using IDLE.
 
         if sys.stdin.isatty():
             print(f"{'*' * 6}", end=" ")
@@ -76,21 +102,25 @@ class User:
             print(f"{'*' * 6}", end=" ")
             login_pwd = input("Password: ")
 
+        # Looking for the email in the database.
         cursor.execute('SELECT *, rowid FROM user_info WHERE email = ?', (login_email,))
         res = cursor.fetchone()
 
-        # Email Existence Lookup
-        if type(res) == type(None):
+        # If Email doesn't exist:
+        if res is None:
             print(f"{'*' * 6}", end=" ")
             print("Login Failed! Incorrect Email or Password.")
             return False
 
         # Getting password key from Database
+        # The format of the saved password: SaltKey
         pwd = res[INDEX_FETCH_PWD]
+
+        # Extracting the salt and the key
         salt = pwd[:SIZE_SALT]
         key = pwd[SIZE_KEY:]
 
-        # Making Key with same salt for the login password
+        # Making Key with same salt for the password that the user just input.
         login_key = pbkdf2_hmac('sha256', login_pwd.encode('UTF-8'),
                                 salt, ITERATION_HASH)
 
@@ -100,6 +130,8 @@ class User:
             print("Login Failed! Incorrect Email or Password.")
             return False
 
+        # Successful Login.
+        # All the data from the database for the logged in user is assigned to the object.
         print(f"{'*' * 6}", end=" ")
         print("Login was Successful")
         self.user_id = res[INDEX_FETCH_ROWID]
@@ -111,28 +143,38 @@ class User:
         self.login_status = True
         return True
 
+    # Method: Add Income
+    # This Method adds an income to the database and increases the balance accordingly.
     def add_income(self):
+        # Header Prints
         print(f"{'*' * 40}")
-        print(f"{'*'*6}{'ADD INCOME':^28}{'*'*6}")
+        print(f"{'*' * 6}{'ADD INCOME':^28}{'*' * 6}")
         print(f"{'*' * 40}")
 
+        # Asking for information regarding the income and Validating them.
         print(f"{'*' * 6}", end=" ")
         print("Enter the following information.")
         while True:
             print(f"{'*' * 6}", end=" ")
             src = input("Source of Income: ")
+
+            # Using Regular Expression to check if the input source is blank
             if re.search('.+', src):
                 break
             print(f"{'*' * 6}", end=" ")
             print("Error! Source cannot be empty.")
 
-
         # Amount Validation
         while True:
             print(f"{'*' * 6}", end=" ")
             amnt = input("Amount: ")
+
+            # Checking if the input is a number or not
             try:
-                amnt = abs(float(amnt))
+                amnt = (float(amnt))
+                # Negativity Check
+                if amnt < 0:
+                    raise ValueError
             except ValueError:
                 print(f"{'*' * 6}", end=" ")
                 print("Invalid Amount! Please try again with a valid amount.")
@@ -143,29 +185,37 @@ class User:
         des = input("Description (Optional! Hit Enter to Continue): ")
 
         try:
-            cursor.execute("SELECT trxid FROM ledger ORDER BY trxid DESC LIMIT 1")
-
             # Generating the new TrxID by adding one to the last TrxID
+            cursor.execute("SELECT trxid FROM ledger ORDER BY trxid DESC LIMIT 1")
             trxid = cursor.fetchone()[INDEX_FETCH_LAST_TRXID] + 1
 
-            cursor.execute("INSERT INTO ledger(user_info_rowid, trxid, type, name, category, amount, entry_date, description) "
-                           "VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
-                           (self.user_id, trxid, TYPE_INCOME, src, src, amnt, date.today(), des))
+            # Adding the income to the database
+            cursor.execute(
+                "INSERT INTO ledger(user_info_rowid, trxid, type, name, category, amount, entry_date, description) "
+                "VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
+                (self.user_id, trxid, TYPE_INCOME, src, src, amnt, date.today(), des))
 
+            # Adjusting the balance
             self.balance += amnt
-
             cursor.execute("UPDATE user_info SET balance = ? WHERE rowid = ? ", (self.balance, self.user_id))
 
+            # Commiting the changes made in the database
             connection.commit()
 
         except:
+            # If something goes wrong.
             print(f"{'*' * 6}", end=" ")
             print("Failed to insert the transaction! Try Again Later.")
         else:
             print(f"{'*' * 6}", end=" ")
             print("Transaction Successfully Inserted!")
 
+    # Method: Add Expense
+    # This Method adds an expense to the database and reduces the balance accordingly.
     def add_expense(self):
+        # The procedure is almost similar to the add_income() method.
+        # So, I am not adding the redundant comments.
+
         print(f"{'*' * 40}")
         print(f"{'*' * 6}{'ADD EXPENSE':^28}{'*' * 6}")
         print(f"{'*' * 40}")
@@ -196,6 +246,7 @@ class User:
             print(f"{'*' * 6}", end=" ")
             amnt = input("Amount: ")
             try:
+                # Accepting negative values, since expense is negative.
                 amnt = abs(float(amnt))
             except ValueError:
                 print(f"{'*' * 6}", end=" ")
@@ -212,13 +263,15 @@ class User:
             trxid = cursor.fetchone()[INDEX_FETCH_LAST_TRXID] + 1
 
             # Inserting data into the Database
-            cursor.execute("INSERT INTO ledger(user_info_rowid, trxid, type, name, category, amount, entry_date, description) "
-                           "VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
-                           (self.user_id, trxid, TYPE_EXPENSE, name, category, amnt, date.today(), des))
+            cursor.execute(
+                "INSERT INTO ledger(user_info_rowid, trxid, type, name, category, amount, entry_date, description) "
+                "VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
+                (self.user_id, trxid, TYPE_EXPENSE, name, category, amnt, date.today(), des))
 
             # Changing the balance of the user
             self.balance -= amnt
             cursor.execute("UPDATE user_info SET balance = ? WHERE rowid = ? ", (self.balance, self.user_id))
+
             connection.commit()
 
         except:
@@ -228,21 +281,31 @@ class User:
             print(f"{'*' * 6}", end=" ")
             print("Transaction Successfully Inserted!")
 
-
+    # Utility Function: View Statements
+    # This utility function collects info to print monthly statements for all incomes, and expenses.
+    # Arguments (2): statement_time -> current month (represented as 1), previous month (represented as 0)
+    #                statement_type -> Income (represented as 1),
+    #                              Expense (represented as 2),
+    #                              Both (represented as 3).
+    # Return: Statement -> a List of dictonaries that hold transaction information.
+    #         months -> a dictionary to help print when printing the statement.
+    #         month -> the integer value of the month requested.
     def view_statement(self, statement_time, statement_type):
 
-        # Numeric Value of this month
-        month = str(date.today()).split('-')[INDEX_MONTH]
+        # Numeric Value of this month, and year
+        month = str(date.today()).split('-')[INDEX_DATE_MONTH]
+        year = str(date.today()).split('-')[INDEX_DATE_YEAR]
         if statement_time == STATEMENT_PREV_MONTH:
-            month = "0" + str(int(month)-1)
+            # Assigning the numeric value of the previous month to month variable
+            month = "0" + str(int(month) - 1)
 
         # For Printing the Month
         months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
                   "November", "December"]
 
         # Upper and lower bound of the date.
-        date_lower_bound = "2021-" + month + "-01"
-        date_upper_bound = "2021-" + month + "-31"
+        date_lower_bound = str(year) + "-" + month + "-01"
+        date_upper_bound = str(year) + "-" + month + "-31"
 
         # Getting the Statement data from the database
         if statement_type == STATEMENT_TYPE_ALL:
@@ -269,11 +332,13 @@ class User:
                            "(entry_date >= ? AND  entry_date <= ?)",
                            (self.user_id, TYPE_EXPENSE, date_lower_bound, date_upper_bound))
 
-
-        # Converting statement to a readable dictionary format
+        # This list will contain all the transactions in a dictionary format. One dictionary per transaction.
         statement = []
+
+        # Converting fetched statement into a readable dictionary format.
         for item in cursor.fetchall():
             temp_dict = {}
+
             temp_dict['TrxID'] = item[1]
             temp_dict['Transaction_Type'] = item[2]
             if item[2] == TYPE_INCOME:
@@ -288,6 +353,7 @@ class User:
             temp_dict['Date'] = item[6]
             temp_dict['Description'] = item[7]
 
+            # Adding the dictionary to the list.
             statement.append(temp_dict)
 
         # Reversing so that the order of transaction can be latest to oldest
@@ -295,42 +361,52 @@ class User:
 
         return statement, months, month
 
+    # Method: View Statement All
+    # This method prints out all the transactions (both income and expense) in a month
+    # Argument: month (current/previous)
     def view_statement_all(self, month):
-        if self.login_status == False:
+        # Checking whether the user is logged in.
+        if not self.login_status:
             print("Error! It looks like your not logged in.")
             return False
+
+        # Calling the utility function according to the needs.
         if month == STATEMENT_THIS_MONTH:
             statement, months, month_num = self.view_statement(STATEMENT_THIS_MONTH, STATEMENT_TYPE_ALL)
         elif month == STATEMENT_PREV_MONTH:
             statement, months, month_num = self.view_statement(STATEMENT_PREV_MONTH, STATEMENT_TYPE_ALL)
 
+        if len(statement) == 0:
+            print("No Transaction Found!")
 
-        # Printing Statement
-        print(f"{'*'*40}")
-        print(f"{'*' * 6}{'MONTHLY STATEMENT':^28}{'*' * 6}")
-        print(f"{'*'*40}")
-        print(f"Statement Type: All Transactions")
-        print(f"Name: {self.first_name} {self.last_name}")
-        print(f"Month: {months[int(month_num)-1]}")
-        print(f"{'='*95}")
-        print(f"{'Transaction ID':<18}{'Name':<15}  {'Category':<15}  {'Source: ':<15}  {'Date':<15}  {'Amount':>8}")
-        total = 0
-        for item in statement:
-            print(f"{item['TrxID']:<18}{item['Name']:<15}  {item['Type']:<15}  {item['Source']:<15}  "
-                  f"{item['Date']:<15}  "
-                  f"{-1 * item['Amount'] if item['Transaction_Type'] == TYPE_EXPENSE else item['Amount']:>8.2f}")
-            if item['Transaction_Type'] == TYPE_INCOME:
-                total += float(item['Amount'])
-            elif item['Transaction_Type'] == TYPE_EXPENSE:
-                total -= float(item['Amount'])
+        else:
+            # Printing Statement
+            print(f"{'*' * 40}")
+            print(f"{'*' * 6}{'MONTHLY STATEMENT':^28}{'*' * 6}")
+            print(f"{'*' * 40}")
+            print(f"Statement Type: All Transactions")
+            print(f"Name: {self.first_name} {self.last_name}")
+            print(f"Month: {months[int(month_num) - 1]}")
+            print(f"{'=' * 95}")
+            print(f"{'Transaction ID':<18}{'Name':<15}  {'Category':<15}  {'Source: ':<15}  {'Date':<15}  {'Amount':>8}")
+            total = 0
+            for item in statement:
+                print(f"{item['TrxID']:<18}{item['Name']:<15}  {item['Type']:<15}  {item['Source']:<15}  "
+                      f"{item['Date']:<15}  "
+                      f"{-1 * item['Amount'] if item['Transaction_Type'] == TYPE_EXPENSE else item['Amount']:>8.2f}")
+                if item['Transaction_Type'] == TYPE_INCOME:
+                    total += float(item['Amount'])
+                elif item['Transaction_Type'] == TYPE_EXPENSE:
+                    total -= float(item['Amount'])
 
-        print(f"{'='*95}")
-        print(f"Total{' '*79}  {total:>8.2f}")
+            print(f"{'=' * 95}")
+            print(f"Total{' ' * 79}  {total:>8.2f}")
 
-        print()
-        print()
+            print()
+            print()
         return True
 
+    # Similar to view_statement_all() method
     def view_statement_income(self, month):
         if self.login_status == False:
             print("Error! It looks like your not logged in.")
@@ -340,29 +416,33 @@ class User:
         elif month == STATEMENT_PREV_MONTH:
             statement, months, month_num = self.view_statement(STATEMENT_PREV_MONTH, STATEMENT_TYPE_INCOME)
 
+        if len(statement) == 0:
+            print("No Transaction Found!")
 
-        # Printing Statement
-        print(f"{'*'*40}")
-        print(f"{'*' * 6}{'MONTHLY STATEMENT':^28}{'*' * 6}")
-        print(f"{'*'*40}")
-        print(f"Name: {self.first_name} {self.last_name}")
-        print(f"Month: {months[int(month_num)-1]}")
-        print(f"Statement Type: Income")
-        print(f"{'='*63}")
-        print(f"{'Transaction ID':<18}  {'Source: ':<15}  {'Date':<15}  {'Amount':>8}")
-        total = 0
-        for item in statement:
-            print(f"{item['TrxID']:<18}  {item['Source']:<15}  "
-                  f"{item['Date']:<15}  {item['Amount']:>8.2f}")
-            total += float(item['Amount'])
+        else:
+            # Printing Statement
+            print(f"{'*' * 40}")
+            print(f"{'*' * 6}{'MONTHLY STATEMENT':^28}{'*' * 6}")
+            print(f"{'*' * 40}")
+            print(f"Name: {self.first_name} {self.last_name}")
+            print(f"Month: {months[int(month_num) - 1]}")
+            print(f"Statement Type: Income")
+            print(f"{'=' * 63}")
+            print(f"{'Transaction ID':<18}  {'Source: ':<15}  {'Date':<15}  {'Amount':>8}")
+            total = 0
+            for item in statement:
+                print(f"{item['TrxID']:<18}  {item['Source']:<15}  "
+                      f"{item['Date']:<15}  {item['Amount']:>8.2f}")
+                total += float(item['Amount'])
 
-        print(f"{'='*63}")
-        print(f"Total{' '*47}  {total:>8.2f}")
+            print(f"{'=' * 63}")
+            print(f"Total{' ' * 47}  {total:>8.2f}")
 
-        print()
-        print()
+            print()
+            print()
         return True
 
+    # Similar to view_statement_all() method
     def view_statement_expense(self, month):
         if not self.login_status:
             print("Error! It looks like your not logged in.")
@@ -373,33 +453,40 @@ class User:
         elif month == STATEMENT_PREV_MONTH:
             statement, months, month_num = self.view_statement(STATEMENT_PREV_MONTH, STATEMENT_TYPE_EXPENSE)
 
-        # Printing Statement
-        print(f"{'*'*40}")
-        print(f"{'*' * 6}{'MONTHLY STATEMENT':^28}{'*' * 6}")
-        print(f"{'*'*40}")
-        print(f"Name: {self.first_name} {self.last_name}")
-        print(f"Month: {months[int(month_num)-1]}")
-        print(f"Statement Type: Expense")
-        print(f"{'='*78}")
-        print(f"{'Transaction ID':<18}{'Name':<15}  {'Category':<15}  {'Date':<15}  {'Amount':>8}")
-        total = 0
-        for item in statement:
-            print(f"{item['TrxID']:<18}{item['Name']:<15}  {item['Type']:<15}  "
-                  f"{item['Date']:<15}  {item['Amount']:>8.2f}")
-            total += float(item['Amount'])
+        if len(statement) == 0:
+            print("No Transaction Found!")
 
-        print(f"{'='*78}")
-        print(f"Total{' '*62}  {total:>8.2f}")
+        else:
+            # Printing Statement
+            print(f"{'*' * 40}")
+            print(f"{'*' * 6}{'MONTHLY STATEMENT':^28}{'*' * 6}")
+            print(f"{'*' * 40}")
+            print(f"Name: {self.first_name} {self.last_name}")
+            print(f"Month: {months[int(month_num) - 1]}")
+            print(f"Statement Type: Expense")
+            print(f"{'=' * 78}")
+            print(f"{'Transaction ID':<18}{'Name':<15}  {'Category':<15}  {'Date':<15}  {'Amount':>8}")
+            total = 0
+            for item in statement:
+                print(f"{item['TrxID']:<18}{item['Name']:<15}  {item['Type']:<15}  "
+                      f"{item['Date']:<15}  {item['Amount']:>8.2f}")
+                total += float(item['Amount'])
 
-        print()
-        print()
+            print(f"{'=' * 78}")
+            print(f"Total{' ' * 62}  {total:>8.2f}")
+
+            print()
+            print()
         return True
 
+    # Method: Transaction Lookup
+    # This method Looks up transactions using the TrxID, and prints the data.
     def transition_lookup(self):
         if not self.login_status:
             print("Error! It looks like your not logged in.")
             return False
 
+        # Input and Validation
         TrxID = input("Enter Transaction ID: ")
         try:
             TrxID = int(TrxID)
@@ -416,14 +503,17 @@ class User:
         cursor.execute("SELECT * FROM ledger WHERE trxid = ?", (TrxID,))
 
         transaction = cursor.fetchone()
-        if transaction == None:
+        # If there is no transaction assign to the input id
+        if transaction is None:
             print("Transaction could not be found. Try again with a different Transaction ID")
             return False
 
+        # If the transaction of the given id is assigned to a different user.
         elif transaction[0] != self.user_id:
             print("Transaction could not be found. Try again with a different Transaction ID")
             return False
 
+        # Printing
         if transaction[INDEX_FETCH_TRANSACTION_TYPE] == TYPE_INCOME:
             print()
             print()
@@ -451,25 +541,3 @@ class User:
             print(f"{'=' * 78}")
 
         return True
-
-
-
-
-
-
-# # Test Data
-# demo = User()
-# demo.user_id = 3
-# demo.first_name = "Abir"
-# demo.last_name = "Palok"
-# demo.email = "pal@gmail.com"
-# demo.dob ="2000-04-05"
-# demo.balance = 0
-# demo.login_status = True
-#
-# demo.view_statement_all(STATEMENT_THIS_MONTH)
-# demo.view_statement_income(STATEMENT_THIS_MONTH)
-# demo.view_statement_expense(STATEMENT_THIS_MONTH)
-
-
-
