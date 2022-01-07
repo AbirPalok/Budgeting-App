@@ -8,4 +8,5 @@ Thsi app allows you to track your finance to help you budget better each month.
 * The passwords are Hashed for better security
 * Automatic Email system to save transaction
 
- 
+## Logs
+

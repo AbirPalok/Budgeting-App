@@ -8,8 +8,11 @@ except:
 # Built-in Imports
 import re
 import sys
+import smtplib, ssl
 from hashlib import pbkdf2_hmac
 from datetime import date
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 # Modules
 from database_connection import *
@@ -49,6 +52,22 @@ STATEMENT_THIS_MONTH = 1
 STATEMENT_TYPE_INCOME = 1
 STATEMENT_TYPE_EXPENSE = 2
 STATEMENT_TYPE_ALL = 3
+
+# Information to send emails:
+with open('email_info.config', 'r') as file:
+    # Email
+    tmp = file.readlines()
+    sender_email = tmp[0].split('=')[1]
+
+    # Password
+    password = tmp[1].split('=')[1]
+
+    # SMTP Server
+    smtp_server = tmp[2].split('=')[1]
+
+    # SSL Port
+    port = int(tmp[3].split('=')[1])
+
 
 
 # This class maintains the active user. Any thing a user performs(Add expense, Add income, View Statement)
@@ -145,6 +164,7 @@ class User:
 
     # Method: Add Income
     # This Method adds an income to the database and increases the balance accordingly.
+    # This Method also sends an email to the user with the information
     def add_income(self):
         # Header Prints
         print(f"{'*' * 40}")
@@ -209,6 +229,185 @@ class User:
         else:
             print(f"{'*' * 6}", end=" ")
             print("Transaction Successfully Inserted!")
+
+            # Sending Email:
+            # Setting the email send/receive info
+            message = MIMEMultipart("alternative")
+            message["Subject"] = "Income Added"
+            message["From"] = sender_email
+            message["To"] = self.email
+
+            months = [None, "January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
+                      "November", "December"]
+
+            # Writing the email in HTML format
+            html = f"""\
+<!doctype html>
+<html lang="en">
+<body style="background-color: #e8e8e8">
+    <div style="width: 50vw; height: 41.5rem; background-color: #ffffff;
+    margin-left: auto; margin-right: auto; margin-top:25px">
+            <!--Top Bar-->
+        <div style="height: 5rem; width: 100%; background-color: #001524; margin-top: 100px;
+        position: relative; top: 10%; vertical-align: middle; padding: 10px 0">
+        <!-- logo image-->
+            <div style="width: 16rem; margin: 0 auto;">
+                <img src="./photos/email_logo.png" alt="Logo" style="width: 16rem;  border-radius: 10px">
+            </div>
+        </div>
+        <div style="
+            padding: 10px; display: block; float: left; font-family: 'Verdana', sans-serif;
+            font-size: 15px;
+            margin: 5rem 2rem 0;
+            ">
+                <p>Hi {self.first_name},</p>
+                <p>Thank you for using our Budgeting App. Here is your Transaction details: </p>
+            <div style="font-family: 'Verdana', sans-serif;">
+                <h3 style="font-size: 15px; margin-bottom: 5px">
+                    Transaction Details:
+                </h3>
+
+                <h3 style=" font-weight: lighter; font-size: 15px;
+                 margin:0">
+                    Account Name: {self.first_name + " " + self.last_name}
+                </h3>
+
+                <h3 style=" font-weight: lighter; font-size: 15px;
+                 margin:0">
+                    Month: {months[int(str(date.today()).split('-')[1])]}
+                </h3>
+
+                <h3 style=" font-weight: lighter; font-size: 15px;
+                 margin: 0 0 10px 0;">
+                    Transaction Type: Income
+                </h3>
+            </div>
+            <table style="font-size: 15px; font-family: 'Arial', sans-serif;
+                          border-collapse: collapse; width: 100%">
+                <thead>
+                    <tr>
+                       <th style="padding: 0.3rem 0.1rem 0.3rem 0.8rem;
+                                  border-style: solid;border-color: black white black black;
+                                  border-width: 0 1px 0 1px;
+                                  background-color: #001524; color:#FFF; text-align: left">
+                            Transaction Number
+                        </th>
+                        <th style="border-style: solid;border-color: black white black black;
+                                  border-width: 0 1px 0 0; padding: 0.3rem 0.1rem 0.3rem 0.8rem;
+                                  background-color: #001524; color:#FFF">
+                            Source
+                        </th>
+                        <th style="border-style: solid;border-color: black white black black;
+                                  border-width: 0 1px 0 0; padding: 0.3rem 0.1rem 0.3rem 0.8rem;
+                                  background-color: #001524; color:#FFF">
+                            Amount
+                        </th>
+                        <th style="border-style: solid;border-color: black black black black;
+                                  border-width: 0 1px 0 0; padding: 0.3rem 0.1rem 0.3rem 0.8rem;
+                                  background-color: #001524; color:#FFF">
+                            Date of Entry
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="border-style: solid;border-color: black black black black;
+                                  border-width: 0 1px 1px 1px; padding: 0.3rem 0.1rem 0.3rem 0.8rem;
+                                  background-color: #FFF; color:#001524;
+                                  text-align: left">
+                            {trxid}
+                        </td>
+                        <td style="border-style: solid;border-color: black black black black;
+                                  border-width: 0 1px 1px 0; padding: 0.3rem 0.1rem 0.3rem 0.8rem;
+                                  background-color: #FFF; color:#001524;
+                                  text-align: left">
+                            {src}
+                        </td>
+                        <td style="border-style: solid;border-color: black black black black;
+                                  border-width: 0 1px 1px 0; padding: 0.3rem 0.1rem 0.3rem 0.8rem;
+                                  background-color: #FFF; color:#001524;
+                                  text-align: left">
+                            {amnt}
+                        </td>
+                        <td style="border-style: solid;border-color: black black black black;
+                                  border-width: 0 1px 1px 0; padding: 0.3rem 0.1rem 0.3rem 0.8rem;
+                                  background-color: #FFF; color:#001524;
+                                  text-align: left">
+                            {str(date.today())}
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div style="text-align: left;
+                        font-family: 'Arial',serif">
+
+
+                <h2 style="font-family: 'Helvetica', sans-serif">Did you know?</h2>
+                <ul>
+                    <li>You can look up your transaction through the TrxID</li>
+                    <li>You can view statement upto your previous month</li>
+                    <li>You have the option to view income, and expense statements differently</li>
+                </ul>
+                <h2 style="font-family: 'Helvetica', sans-serif; color:#001524">Enjoying the App?</h2>
+                <div style="height: 2.5rem; width: 7rem; border-radius: 0.5rem;
+                    display: inline-block;
+                    background-color:#ec5732; color: #001524;
+                    line-height: 2.5rem;
+                    cursor: pointer;
+                    text-align: center;
+                    font-weight: 700">
+                    Rate Us
+                </div>
+            </div>
+        </div>
+
+
+    </div>
+</body>
+</html>
+            """
+            # Writing the email in plain text format
+            text = f"""Budgeting App\n
+
+                        Hi {self.first_name},\n
+                        Thank you for using Budgeting App. Here is your Transaction details:\n\n
+                        
+                        Transaction Details:\n
+                        Account Name: {self.first_name + " " + self.last_name}\n
+                        Month: {months[int(str(date.today()).split('-')[1])]} \n
+                        Transaction Type: Inocme \n
+                        
+                        Transaction Number: {trxid}\n
+                        Source: {src}\n
+                        Amount: {amnt}\n
+                        Date of Entry: {str(date.today())}\n\n
+                        
+                        Did you know:\n
+                        > You can look up your transaction through the TrxID\n
+                        > You can view statement upto your previous month\n
+                        > You have the option to view income, and expense statements differently\n\n
+                        
+                        
+                        Enjoying the App?\n
+                        Rate us at https://.../Rate\n"""
+
+            # Turn these into plain/html MIMEText objects
+            part1 = MIMEText(text, "plain")
+            part2 = MIMEText(html, "html")
+
+            # Add HTML/plain-text parts to MIMEMultipart message
+            # The email client will try to render the last part first
+            message.attach(part1)
+            message.attach(part2)
+
+            # Create secure connection with server and send email
+            context = ssl.create_default_context()
+            with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=context) as server:
+                server.login(sender_email, password)
+                server.sendmail(
+                    sender_email, self.email, message.as_string()
+                )
 
     # Method: Add Expense
     # This Method adds an expense to the database and reduces the balance accordingly.
